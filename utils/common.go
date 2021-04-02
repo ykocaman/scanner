@@ -1,35 +1,13 @@
 package utils
 
 import (
-	"encoding/json"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"regexp"
 	"time"
 
 	"github.com/ykocaman/scanner/configs"
-	"github.com/ykocaman/scanner/models"
 )
-
-func GenerateMapFromCVE(cves []models.RedhatCVE) map[string][]string {
-
-	var list map[string][]string = make(map[string][]string, 1000)
-
-	re := regexp.MustCompile("-[0-9]+:.*")
-
-	for _, cve := range cves {
-
-		for _, library := range cve.AffectedPackages {
-
-			key := re.ReplaceAllString(library, "")
-
-			list[key] = append(list[key], cve.Code)
-		}
-	}
-
-	return list
-}
 
 func GetContent(url string) string {
 	client := http.Client{
@@ -62,12 +40,6 @@ func GetContent(url string) string {
 	// if jsonErr != nil {
 	// 	log.Fatal(jsonErr)
 	// }
-}
-
-func GetObjectFromCVE(content string) []models.RedhatCVE {
-	var redHatCVE []models.RedhatCVE
-	json.Unmarshal([]byte(content), &redHatCVE)
-	return redHatCVE
 }
 
 func GetCVECodes() string {

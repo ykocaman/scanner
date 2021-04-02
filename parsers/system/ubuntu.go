@@ -3,12 +3,15 @@ package parsers
 import (
 	"log"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/ykocaman/scanner/models"
 )
 
 func GetComponents() (components []models.Component) {
+
+	re := regexp.MustCompile(`(\d+\.)(\d+\.)(\d)|(\d+\.)(\d)|(\d)+\d`)
 
 	out, err := exec.Command("apt", "list", "--installed").Output()
 	if err != nil {
@@ -21,11 +24,14 @@ func GetComponents() (components []models.Component) {
 		properties := strings.Split(line, " ")
 		identity := strings.Split(properties[0], "/")
 
+		version := re.FindString(properties[1])
+
 		components = append(components, models.Component{
-			Name:    identity[0],
-			Repo:    identity[1],
-			Version: properties[1],
-			Arch:    properties[2],
+			Name:       identity[0],
+			Repo:       identity[1],
+			Version:    version,
+			RawVersion: properties[1],
+			Arch:       properties[2],
 			// Status:  properties[3],
 		})
 		// fmt.Printf("%s %s\n", name, version)
