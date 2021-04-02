@@ -11,7 +11,7 @@ import (
 
 func GetComponents() (components []models.Component) {
 
-	re := regexp.MustCompile(`(\d+\.)(\d+\.)(\d)|(\d+\.)(\d)|(\d)+\d`)
+	re := regexp.MustCompile(`(\d+\.)(\d+\.)(\d+)|(\d+\.)(\d+)|(\d+)\d`)
 
 	out, err := exec.Command("apt", "list", "--installed").Output()
 	if err != nil {

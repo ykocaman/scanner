@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"crypto/tls"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -11,8 +12,10 @@ import (
 
 func GetContent(url string) string {
 	client := http.Client{
-		Timeout: time.Second * 10,
+		Timeout: time.Second * 30,
 	}
+
+	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -34,12 +37,6 @@ func GetContent(url string) string {
 	}
 
 	return string(body)
-
-	// people1 := {}
-	// jsonErr := json.Unmarshal(body, &people1)
-	// if jsonErr != nil {
-	// 	log.Fatal(jsonErr)
-	// }
 }
 
 func GetCVECodes() string {

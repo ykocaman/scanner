@@ -2,6 +2,7 @@ package parsers
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -14,6 +15,7 @@ func GetObjectFromCVE(content string) []models.RedhatCVE {
 
 	for key, cve := range redHatCVE {
 		redHatCVE[key].Description = strings.ReplaceAll(cve.Description, cve.Code+" ", "")
+		redHatCVE[key].URL = fmt.Sprintf("https://access.redhat.com/security/cve/%s", cve.Code)
 	}
 
 	return redHatCVE
@@ -21,7 +23,7 @@ func GetObjectFromCVE(content string) []models.RedhatCVE {
 
 func GenerateMapFromCVE(cves []models.RedhatCVE) (list map[string]map[string]models.RedhatCVE) {
 
-	list = make(map[string]map[string]models.RedhatCVE, 1000)
+	list = make(map[string]map[string]models.RedhatCVE, len(cves))
 
 	re := regexp.MustCompile("-[0-9]+:.*")
 

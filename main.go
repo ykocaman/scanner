@@ -22,6 +22,7 @@ func main() {
 	list := dataParsers.GenerateMapFromCVE(redhatCVEs)
 
 	components := systemParsers.GetComponents()
+	affectedTotalCount := 0
 	for _, component := range components {
 		if len(list[component.Name]) > 0 {
 			fmt.Println(color.BlueString("%s, %s (%s)", component.Name, component.Version, component.RawVersion))
@@ -31,11 +32,16 @@ func main() {
 			for _, cve := range list[component.Name] {
 				for _, affected := range cve.AffectedPackages {
 					if strings.Contains(affected, component.Version) {
-						fmt.Println(color.YellowString("Code: %s Publication Date: %s", cve.Code, cve.PublicDate))
+						fmt.Println(
+							color.YellowString("Code: "), color.MagentaString(cve.Code),
+							color.YellowString("Publication Date: "), color.MagentaString(cve.PublicDate),
+							color.YellowString("Severity: "), color.MagentaString(cve.Severity),
+						)
 						fmt.Println(cve.Description)
 						fmt.Println(color.CyanString(cve.URL))
 						fmt.Println(cve.AffectedPackages)
 						affectedCount++
+						affectedTotalCount++
 						break
 					}
 				}
@@ -43,11 +49,13 @@ func main() {
 			}
 
 			if affectedCount < 1 {
-				fmt.Println(color.GreenString("Zafiyet bulunamadi"))
+				fmt.Println(color.GreenString("None"))
 			} else {
-				fmt.Println(color.RedString("Toplam %d adet zafiyet bulundu", affectedCount))
+				fmt.Println(color.RedString("Count: %d ", affectedCount))
 			}
 		}
 	}
+
+	fmt.Println(color.RedString("Total: %d ", affectedTotalCount))
 
 }
