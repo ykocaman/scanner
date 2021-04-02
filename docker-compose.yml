@@ -1,0 +1,6 @@
+version: "3.3"
+services:
+  ubuntu:
+    build: .
+    command: "/bin/scanner"
+    #command: "/bin/sh -c 'sleep 1000'"
