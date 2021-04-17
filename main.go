@@ -13,16 +13,11 @@ import (
 func main() {
 
 	redhatCVEs := dataParsers.GetObjectFromCVE(utils.GetCVECodes())
-	// for _, cve := range redhatCVEs {
-	// 	if len(cve.AffectedPackages) > 0 {
-	// 		// fmt.Println(cve.Code, cve.AffectedPackages)
-	// 	}
-	// }
-
 	list := dataParsers.GenerateMapFromCVE(redhatCVEs)
-
 	components := systemParsers.GetComponents()
+
 	affectedTotalCount := 0
+
 	for _, component := range components {
 		if len(list[component.Name]) > 0 {
 			fmt.Println(color.BlueString("%s, %s (%s)", component.Name, component.Version, component.RawVersion))
