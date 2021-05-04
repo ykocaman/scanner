@@ -12,7 +12,7 @@ import (
 
 func GetContent(url string) string {
 	client := http.Client{
-		Timeout: time.Second * 30,
+		Timeout: time.Second * 60,
 	}
 
 	http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}

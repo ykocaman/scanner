@@ -1,6 +1,42 @@
 version: "3.3"
 services:
-  ubuntu:
+  scanner:
     build: .
-    # command: "/bin/scanner"
-    command: "/bin/sh -c 'sleep 1000'"
+    command: /bin/sh -c 'crontab /crontab;/usr/sbin/cron; touch /tmp/scanner.log; tail -qf /tmp/scanner.log 2>/dev/null'
+    volumes:
+      - ${PWD}/crontab:/crontab
+      - ${PWD}/.env:/bin/.env
+
+  es01:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.12.0
+    container_name: es01
+    network_mode: host
+    environment:
+      - node.name=es01
+      - cluster.name=es-docker-cluster
+      - discovery.seed_hosts=es01
+      - cluster.initial_master_nodes=es01
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - data01:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+
+  kib01:
+    image: docker.elastic.co/kibana/kibana:7.12.0
+    container_name: kib01
+    network_mode: host
+    ports:
+      - 5601:5601
+    environment:
+      ELASTICSEARCH_URL: http://localhost:9200
+      ELASTICSEARCH_HOSTS: '["http://localhost:9200"]'
+
+volumes:
+  data01:
+    driver: local

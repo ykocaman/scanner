@@ -3,6 +3,7 @@ package configs
 var CVEs = map[string]map[string]string{
 	"redhat": {
 		"url": "https://access.redhat.com/hydra/rest/securitydata/cve.json?per_page=9999999",
+		// "url": "https://access.redhat.com/hydra/rest/securitydata/cve.json?per_page=4000",
 	},
 	// "debian": {
 	// 	"url": "https://security-tracker.debian.org/tracker/data/json",
@@ -18,3 +19,5 @@ var CVEs = map[string]map[string]string{
 func GetCVEs() map[string]map[string]string {
 	return CVEs
 }
+
+const ELASTIC_INDEX = "scanner"

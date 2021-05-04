@@ -15,3 +15,5 @@
 # vendor/
 
 scanner
+cache
+.env
