@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"regexp"
 	"strconv"
@@ -13,7 +12,7 @@ import (
 	"github.com/ykocaman/scanner/models"
 )
 
-const CACHE_FILE = "cache"
+const CACHE_FILE = "/tmp/cache"
 
 func GetObjectFromCVE(content string) []models.RedhatCVE {
 	var redHatCVE []models.RedhatCVE
@@ -35,15 +34,9 @@ func GenerateMapFromCVE(cves []models.RedhatCVE) (list map[string]map[string]mod
 	re := regexp.MustCompile("-[0-9]+:.*")
 
 	var cache []byte
-	var f *os.File
 
 	if USE_CACHING {
 		cache, _ = ioutil.ReadFile(CACHE_FILE)
-		f, err := os.OpenFile(CACHE_FILE, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer f.Close()
 	}
 
 	for _, cve := range cves {
@@ -51,8 +44,9 @@ func GenerateMapFromCVE(cves []models.RedhatCVE) (list map[string]map[string]mod
 			if strings.Contains(string(cache), cve.Code) {
 				continue
 			}
-
+			f, _ := os.OpenFile(CACHE_FILE, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 			fmt.Fprintln(f, cve.Code)
+			f.Close()
 		}
 
 		for _, library := range cve.AffectedPackages {
