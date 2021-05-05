@@ -19,5 +19,3 @@ var CVEs = map[string]map[string]string{
 func GetCVEs() map[string]map[string]string {
 	return CVEs
 }
-
-const ELASTIC_INDEX = "scanner"

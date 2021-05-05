@@ -15,7 +15,6 @@ import (
 	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/joho/godotenv"
 	"github.com/olivere/elastic/v7"
-	"github.com/ykocaman/scanner/configs"
 	"github.com/ykocaman/scanner/models"
 	dataParsers "github.com/ykocaman/scanner/parsers/data"
 	systemParsers "github.com/ykocaman/scanner/parsers/system"
@@ -162,7 +161,7 @@ func insertToElastic(cve models.RedhatCVE, component models.Component) {
 	}
 
 	client.Index().
-		Index(configs.ELASTIC_INDEX).
+		Index(os.Getenv("ELASTIC_INDEX")).
 		BodyJson(
 			struct {
 				Code, Severity, AffectedPackage, AffectedVersion, URL, Description, Score, PublicDate, DetectionDate string
