@@ -5,7 +5,7 @@ services:
     command: /bin/sh -c 'crontab /crontab;/usr/sbin/cron; touch /tmp/scanner.log; tail -qf /tmp/scanner.log 2>/dev/null'
     volumes:
       - ${PWD}/crontab:/crontab
-      - ${PWD}/.env:/bin/.env
+      - ${PWD}/.env:/.env
 
   es01:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.12.0
