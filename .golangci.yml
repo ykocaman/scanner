@@ -1,0 +1,76 @@
+version: "2"
+
+linters:
+  enable:
+    - govet
+    - errcheck
+    - staticcheck
+    - ineffassign
+    - unused
+    - revive
+    - bodyclose
+    - exhaustive
+    - misspell
+    - gocognit
+    - goconst
+    - unparam
+    - errorlint
+    - gosec
+    - gocritic
+    - nilnil
+    - nilerr
+    - forcetypeassert
+    - wastedassign
+    - predeclared
+    - contextcheck
+    - noctx
+    - rowserrcheck
+    - sqlclosecheck
+    - modernize
+  settings:
+    revive:
+      rules:
+        - name: blank-imports
+        - name: context-as-argument
+        - name: dot-imports
+        - name: error-return
+        - name: error-strings
+        - name: exported
+        - name: if-return
+        - name: increment-decrement
+        - name: var-naming
+        - name: package-comments
+        - name: argument-limit
+          arguments: [7]
+    exhaustive:
+      default-signifies-exhaustive: true
+    gocognit:
+      min-complexity: 15
+    goconst:
+      min-len: 9
+      min-occurrences: 3
+      ignore-calls: false
+      ignore-string-values:
+        - "%[a-zA-Z%]"
+    unparam:
+      check-exported: false
+    gosec:
+      excludes:
+        - G304
+        - G204
+  exclusions:
+    rules:
+      - path: (.+)_test\.go
+        linters: [goconst, gocognit]
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    gofumpt:
+      module-path: github.com/ykocaman/scanner

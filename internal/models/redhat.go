@@ -1,5 +1,6 @@
 package models
 
+// RedhatCVE is a single vulnerability entry from Red Hat's security data feed.
 type RedhatCVE struct {
 	Code             string   `json:"CVE"`
 	Description      string   `json:"bugzilla_description"`

@@ -1,14 +1,13 @@
-version: "3.3"
 services:
   scanner:
     build: .
     command: /bin/sh -c 'crontab /crontab;/usr/sbin/cron; touch /tmp/scanner.log; tail -qf /tmp/scanner.log 2>/dev/null'
     volumes:
-      - ${PWD}/crontab:/crontab
+      - ${PWD}/deploy/crontab:/crontab
       - ${PWD}/.env:/.env
 
   es01:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.12.0
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.29
     container_name: es01
     network_mode: host
     environment:
@@ -28,7 +27,7 @@ services:
       - 9200:9200
 
   kib01:
-    image: docker.elastic.co/kibana/kibana:7.12.0
+    image: docker.elastic.co/kibana/kibana:7.17.29
     container_name: kib01
     network_mode: host
     ports:

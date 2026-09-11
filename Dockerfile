@@ -1,10 +1,17 @@
-FROM golang:1.15 AS build
-ENV CGO_ENABLED=0 GOOS=linux
+FROM golang:1.23-bookworm AS build
 WORKDIR /build/
-ADD . /build/
-RUN go build -a -installsuffix cgo -o scanner
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o scanner ./cmd/scanner
 
-# FROM ubuntu:21.04 AS final
-FROM ubuntu:14.04 AS final
+# Replace this with whatever Debian/Ubuntu-based image represents the host
+# you actually want scanned; the scanner shells out to `apt` to build its
+# package inventory.
+FROM ubuntu:24.04 AS final
+# `cron` runs as root by design (see docker-compose.yml, which schedules the
+# scan via the system crontab); it is not preinstalled in the base image.
+RUN apt-get update && apt-get install -y --no-install-recommends cron \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=build /build/scanner /bin/scanner
-CMD "/bin/scanner"
+CMD ["/bin/scanner"]
