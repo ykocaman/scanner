@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/ykocaman/scanner/internal/config"
 	"github.com/ykocaman/scanner/internal/models"
@@ -35,10 +36,13 @@ type fix struct {
 	CVEs    []string
 }
 
-// Scan fetches an Alpine secdb feed and returns every Finding it
-// produces against components.
+// Scan fetches every configured Alpine secdb feed and returns every
+// Finding they produce against components. cfg.Alpine.URL may name
+// several feeds separated by commas (a release's secdb is split across
+// repos - main, community, ... - each its own file); all of them are
+// fetched and merged.
 func Scan(ctx context.Context, client *http.Client, cfg config.Config, components []models.Component) ([]models.Finding, error) {
-	data, err := Fetch(ctx, client, cfg.Alpine.URL)
+	data, err := FetchAll(ctx, client, strings.Split(cfg.Alpine.URL, ","))
 	if err != nil {
 		return nil, fmt.Errorf("alpine: %w", err)
 	}
@@ -52,8 +56,23 @@ func Scan(ctx context.Context, client *http.Client, cfg config.Config, component
 	return findings, nil
 }
 
+// FetchAll downloads and merges several secdb feeds (see Fetch).
+func FetchAll(ctx context.Context, client *http.Client, urls []string) (map[string][]fix, error) {
+	result := make(map[string][]fix)
+	for _, url := range urls {
+		data, err := Fetch(ctx, client, strings.TrimSpace(url))
+		if err != nil {
+			return nil, err
+		}
+		for name, fixes := range data {
+			result[name] = append(result[name], fixes...)
+		}
+	}
+	return result, nil
+}
+
 // Fetch downloads and decodes a single Alpine secdb feed (e.g. one
-// release's "community.json"), indexed by package name.
+// release's "main.json"), indexed by package name.
 func Fetch(ctx context.Context, client *http.Client, url string) (map[string][]fix, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {

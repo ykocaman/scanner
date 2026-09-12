@@ -1,4 +1,4 @@
-FROM golang:1.23-bookworm AS build
+FROM golang:1.25-bookworm AS build
 WORKDIR /build/
 COPY go.mod go.sum ./
 RUN go mod download
@@ -11,7 +11,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o scanner ./cmd/sca
 FROM ubuntu:24.04 AS final
 # `cron` runs as root by design (see docker-compose.yml, which schedules the
 # scan via the system crontab); it is not preinstalled in the base image.
-RUN apt-get update && apt-get install -y --no-install-recommends cron \
+# `ca-certificates` isn't preinstalled either — without it every HTTPS CVE
+# feed fetch fails with "x509: certificate signed by unknown authority".
+RUN apt-get update && apt-get install -y --no-install-recommends cron ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /build/scanner /bin/scanner
 CMD ["/bin/scanner"]

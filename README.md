@@ -1,53 +1,46 @@
 # Vulnerability Scanner
 
-A small CLI that checks the packages installed on a Debian/Ubuntu host
-against up to four CVE feeds — Red Hat, the Debian Security Tracker,
-Ubuntu's USN database, and Alpine's secdb — and reports any matches as a
-colored console table, and optionally by email or into Elasticsearch.
+A CLI that inventories packages installed on the local host and checks them
+against CVE feeds — Red Hat, the Debian Security Tracker, Ubuntu's USN
+database, and Alpine's secdb — reporting matches as a colored console
+table, and optionally by email or into Elasticsearch.
 
 ### Demo
 [![asciicast](https://asciinema.org/a/411920.svg)](https://asciinema.org/a/411920)
 
 ## How it works
 
-1. Runs `apt list --installed` to inventory packages on the local host.
+1. Detects the host's package manager (apt, rpm, or apk) and inventories
+   installed packages with it.
 2. Fetches every enabled CVE source and matches it against that inventory:
    - **Red Hat** — substring match against the feed's affected
-     package/version strings (see the caveat below).
-   - **Debian** / **Ubuntu** — matched against the release (suite) your apt
-     repo reports, using a real dpkg version comparison
-     (`internal/version/dpkg`) against each CVE's `fixed_version`.
-   - **Alpine** — matched with a best-effort apk version comparison
-     (`internal/version/apk`); see [internal/sources/alpine](internal/sources/alpine/alpine.go)
-     for why this rarely applies to an apt-based host.
+     package/version strings. Red Hat lists exact NVR strings, not version
+     ranges, so this is a coarse heuristic, not a real comparison.
+   - **Debian** / **Ubuntu** — matched against the release (suite) apt
+     reports, using real dpkg version comparison against each CVE's
+     `fixed_version`.
+   - **Alpine** — matched with apk version comparison. Only useful on an
+     actual Alpine host; on apt/rpm hosts Alpine's package set doesn't
+     overlap with theirs.
 3. Prints a per-package breakdown plus a severity/package summary table.
 4. Optionally emails the summary and/or indexes each finding into
    Elasticsearch.
 5. Exits with a status code reflecting the outcome (see [Exit codes](#exit-codes)),
-   so it can be driven from cron or any other scheduler/monitor.
+   so it can be driven from cron or any other scheduler.
 
-> **Note on matching:** Red Hat's feed lists exact affected package/version
-> strings rather than version ranges, so a component is flagged when its
-> version string appears as a substring of one of those entries. This is a
-> low-effort heuristic, not a real version-range comparison. Debian/Ubuntu
-> matching is more rigorous (real version comparison against a real fixed
-> version) but only as good as apt's release/repo metadata. Treat every
-> result as a starting point for investigation, not a guarantee.
+Treat results as a starting point, not a guarantee — see the matching notes
+above for each source's limits.
 
 ## Requirements
 
-- A Debian/Ubuntu-based host (or container) with `apt` on `PATH` — this is
-  what the scanner inventories. (Nothing currently inventories Alpine/apk
-  hosts; see the note on the Alpine source above.)
-- Go 1.23+ to build from source.
+- A Linux host (or container) with one of `apt`, `rpm`, or `apk` on `PATH`.
+- Go 1.25+ to build from source.
 
 ## Build
 
 ```bash
-make build
+make build   # -> bin/scanner
 ```
-
-This builds `bin/scanner`.
 
 ## Usage
 
@@ -56,47 +49,44 @@ This builds `bin/scanner`.
 ```
 
 Copy [.env.example](.env.example) to `.env` and adjust it to configure
-caching, email, and Elasticsearch (the scanner loads `.env` automatically on
-startup via [godotenv](https://github.com/joho/godotenv)).
+sources, caching, email, and Elasticsearch (the scanner loads `.env`
+automatically on startup via [godotenv](https://github.com/joho/godotenv)).
 
 ## Configuration
 
 All settings are read from the environment.
 
-| Variable             | Default                        | Description                                                |
-| -------------------- | ------------------------------- | ----------------------------------------------------------|
-| `HTTP_TIMEOUT`        | `5m`                            | Per-request HTTP timeout (Go duration, e.g. `90s`).         |
-| `USE_REDHAT`          | `true`                          | Enable the Red Hat CVE feed.                                |
-| `REDHAT_CVE_URL`      | Red Hat's CVE feed              | Feed URL to fetch and scan against.                         |
-| `REDHAT_PER_PAGE`     | `1000`                          | Results per page when paginating the feed.                  |
-| `USE_DEBIAN`          | `false`                         | Enable the Debian Security Tracker (~70MB feed).             |
-| `DEBIAN_TRACKER_URL`  | Debian's tracker feed           | Feed URL.                                                    |
-| `USE_UBUNTU`          | `false`                         | Enable Ubuntu's USN database (hundreds of MB — see below).   |
-| `UBUNTU_USN_URL`      | Ubuntu's USN database           | Feed URL.                                                    |
-| `USE_ALPINE`          | `false`                         | Enable an Alpine secdb feed (rarely matches an apt host — see above). |
-| `ALPINE_SECDB_URL`    | Alpine v3.20 community secdb    | Feed URL — point this at whichever Alpine release/repo you care about. |
-| `USE_CACHING`         | `false`                         | Skip findings already reported by a previous run.            |
-| `CACHE_PATH`          | `/tmp/scanner-cache`            | File used to persist which findings have already been seen.  |
-| `SEND_MAIL`           | `false`                         | Email the summary table when vulnerabilities are found.      |
-| `MAIL_SERVER_HOST`    | —                               | SMTP host.                                                   |
-| `MAIL_SERVER_PORT`    | —                               | SMTP port.                                                   |
-| `MAIL_USERNAME`       | —                               | SMTP username, also used as the `From` address.              |
-| `MAIL_PASSWORD`       | —                               | SMTP password.                                               |
-| `MAIL_TO`             | —                               | Report recipient.                                            |
-| `USE_ELASTIC`         | `false`                         | Index every finding into Elasticsearch.                      |
-| `ELASTIC_HOST`        | `http://127.0.0.1:9200`         | Elasticsearch URL.                                            |
-| `ELASTIC_INDEX`       | `scanner`                       | Elasticsearch index name.                                    |
+| Variable            | Default                      | Description                                                |
+| ------------------- | ----------------------------- | ----------------------------------------------------------|
+| `HTTP_TIMEOUT`       | `5m`                          | Per-request HTTP timeout (Go duration, e.g. `90s`).         |
+| `USE_REDHAT`         | `true`                        | Enable the Red Hat CVE feed.                                |
+| `REDHAT_CVE_URL`     | Red Hat's CVE feed            | Feed URL to fetch and scan against.                         |
+| `REDHAT_PER_PAGE`    | `1000`                        | Results per page when paginating the feed.                  |
+| `USE_DEBIAN`         | `false`                       | Enable the Debian Security Tracker (~70MB feed).             |
+| `DEBIAN_TRACKER_URL` | Debian's tracker feed         | Feed URL.                                                    |
+| `USE_UBUNTU`         | `false`                       | Enable Ubuntu's USN database (hundreds of MB).               |
+| `UBUNTU_USN_URL`     | Ubuntu's USN database         | Feed URL.                                                    |
+| `USE_ALPINE`         | `false`                       | Enable Alpine secdb feeds (see the note above).              |
+| `ALPINE_SECDB_URL`   | v3.24 `main` + `community`    | Comma-separated secdb feed URLs. Alpine versions its secdb by release, not by a stable alias — update this when the host's Alpine version moves on. |
+| `USE_CACHING`        | `false`                       | Skip findings already reported by a previous run.            |
+| `CACHE_PATH`         | `/tmp/scanner-cache`          | File used to persist which findings have already been seen.  |
+| `SEND_MAIL`          | `false`                       | Email the summary table when vulnerabilities are found.      |
+| `MAIL_SERVER_HOST`   | —                             | SMTP host.                                                   |
+| `MAIL_SERVER_PORT`   | —                             | SMTP port.                                                   |
+| `MAIL_USERNAME`      | —                             | SMTP username, also used as the `From` address.              |
+| `MAIL_PASSWORD`      | —                             | SMTP password.                                               |
+| `MAIL_TO`            | —                             | Report recipient.                                            |
+| `USE_ELASTIC`        | `false`                       | Index every finding into Elasticsearch.                      |
+| `ELASTIC_HOST`       | `http://127.0.0.1:9200`       | Elasticsearch URL.                                            |
+| `ELASTIC_INDEX`      | `scanner`                     | Elasticsearch index name.                                    |
 
-Debian, Ubuntu, and Alpine are off by default: their feeds are large single
-JSON documents (Ubuntu's is several hundred MB) fetched in full on every
-enabled run, so opt in deliberately. Red Hat's feed is the only one that's
-genuinely paginated server-side; the others don't support it, so the scanner
-streams and filters them client-side to keep memory bounded instead
-(`internal/sources/debian` and `internal/sources/ubuntu`).
+Debian, Ubuntu, and Alpine are off by default because their feeds are large
+single JSON documents fetched in full on every run. Only Red Hat's feed is
+paginated server-side; Debian and Ubuntu's are streamed and filtered
+client-side instead, to keep memory bounded.
 
-A failure in one enabled source (e.g. a slow/unreachable feed) is logged and
-skipped rather than aborting the run — the scan only fails outright if every
-enabled source fails.
+A failure in one enabled source is logged and skipped rather than aborting
+the run — the scan only fails if every enabled source fails.
 
 ## Exit codes
 
@@ -104,15 +94,17 @@ enabled source fails.
 | ---- | ------------------------------------------- |
 | `0`  | Scan completed, no vulnerabilities found.   |
 | `1`  | Scan completed, vulnerabilities found.      |
-| `2`  | Scan failed to run (network, apt, etc.).    |
+| `2`  | Scan failed to run (network, inventory, etc.). |
 
 ## Docker
 
-The provided [Dockerfile](Dockerfile) builds the scanner and layers it onto
-an `ubuntu:24.04` image so the packages it inventories are reproducible.
-**Replace the final-stage base image** with whatever host you actually want
-scanned — the scanner always reports on the image it runs in, not your real
-host, unless you run the binary directly there.
+The provided [Dockerfile](Dockerfile) builds the scanner onto an
+`ubuntu:24.04` image. **Replace the final-stage base image** with whatever
+host you actually want scanned — the scanner reports on the image it runs
+in, not your real host, unless you run the binary there directly. If you
+swap in a different base image, make sure it has CA certificates installed
+(`ca-certificates` on Debian/Ubuntu) — several minimal images don't ship
+them, and every feed fetch is HTTPS.
 
 ```bash
 docker build -t scanner .
@@ -136,31 +128,36 @@ make lint
 make fmt
 ```
 
-`make fix` additionally runs [modernize](https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/modernize)
-and applies `golangci-lint --fix`. Lint rules live in [.golangci.yml](.golangci.yml).
+`make fix` runs [modernize](https://pkg.go.dev/golang.org/x/tools/go/analysis/passes/modernize),
+`gofumpt`, and `golangci-lint --fix`. Lint rules live in [.golangci.yml](.golangci.yml).
+
+`make release-build VERSION=x.y.z` cross-compiles linux/amd64 and
+linux/arm64 binaries into `dist/` (Linux only — see Requirements).
 
 ## Project layout
 
 ```
-cmd/scanner/main.go        orchestration: wires the pieces below together
+cmd/scanner/main.go        wires the pieces below together, detects the inventory
 internal/
   config/                  environment-driven configuration
   models/                  shared data types (Component, RedhatCVE, Finding)
   cache/                   generic "have we reported this before" cache
   sources/                 one package per CVE feed, each exposing Scan(...)
-    redhat/                Red Hat: pagination, indexing, substring matching
-    debian/                Debian Security Tracker: streamed + dpkg-version matched
-    ubuntu/                Ubuntu USN database: streamed + dpkg-version matched
-    alpine/                Alpine secdb: apk-version matched (see caveat above)
-  inventory/
-    apt/                   apt-based installed-package inventory
+    redhat/                pagination, indexing, substring matching
+    debian/                streamed, dpkg-version matched
+    ubuntu/                streamed, dpkg-version matched
+    alpine/                apk-version matched
+  inventory/               one package per package manager, each exposing List(...)
+    apt/
+    rpm/                   covers both yum and dnf (same underlying database)
+    apk/
   version/                 package version comparison, one per ecosystem
-    dpkg/                  Debian/Ubuntu version comparison (Policy §5.6.12)
-    apk/                   Alpine version comparison (best-effort, see doc comment)
+    dpkg/                  Debian/Ubuntu (Policy §5.6.12)
+    apk/                   Alpine (common cases only, see doc comment)
     verutil/               digit/non-digit run comparison shared by dpkg and apk
   output/
     report/                console table, tally, and email rendering
-    elastic/                Elasticsearch sink
+    elastic/               Elasticsearch sink
 deploy/crontab             cron schedule used by docker-compose.yml
 docs/ascii.cast             raw asciinema recording behind the demo badge
 ```

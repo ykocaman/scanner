@@ -13,7 +13,7 @@ const (
 
 	defaultDebianTrackerURL = "https://security-tracker.debian.org/tracker/data/json"
 	defaultUbuntuUSNURL     = "https://usn.ubuntu.com/usn-db/database-all.json"
-	defaultAlpineSecdbURL   = "https://secdb.alpinelinux.org/v3.20/community.json"
+	defaultAlpineSecdbURL   = "https://secdb.alpinelinux.org/v3.24/main.json,https://secdb.alpinelinux.org/v3.24/community.json"
 
 	defaultCachePath    = "/tmp/scanner-cache"
 	defaultHTTPTimeout  = 5 * time.Minute
@@ -56,10 +56,12 @@ type Config struct {
 // anything unset. Call godotenv.Load beforehand to pull values from a
 // .env file into the environment first.
 //
-// Debian, Ubuntu, and Alpine are disabled by default: their feeds are
-// large (tens to hundreds of MB) and, in Alpine's case, describe a
-// package universe (apk) this scanner's apt-based inventory can't
-// actually match against — see the README before enabling it.
+// Debian and Ubuntu are disabled by default because their feeds are
+// large (tens to hundreds of MB); Alpine is disabled by default because
+// it only produces real matches on an Alpine (apk) host. Note that
+// ALPINE_SECDB_URL points at a specific Alpine release (repo files
+// aren't versioned by a stable alias) - update it when you upgrade the
+// host's Alpine version. See the README before enabling any of these.
 func Load() Config {
 	return Config{
 		HTTPTimeout: getDuration("HTTP_TIMEOUT", defaultHTTPTimeout),
