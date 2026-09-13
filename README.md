@@ -12,7 +12,9 @@ table, and optionally by email or into Elasticsearch.
 
 1. Detects the host's package manager (apt, rpm, or apk) and inventories
    installed packages with it.
-2. Fetches every enabled CVE source and matches it against that inventory:
+2. Fetches every enabled CVE source and matches it against that inventory.
+   Which sources are enabled is auto-detected from the host's distro —
+   see [Configuration](#configuration) — so there's normally nothing to set:
    - **Red Hat** — substring match against the feed's affected
      package/version strings. Red Hat lists exact NVR strings, not version
      ranges, so this is a coarse heuristic, not a real comparison.
@@ -54,39 +56,45 @@ automatically on startup via [godotenv](https://github.com/joho/godotenv)).
 
 ## Configuration
 
-All settings are read from the environment.
+Nothing is required to get useful output: which CVE source runs is
+auto-detected from the host's distro (see `internal/distro`) —
 
-| Variable            | Default                      | Description                                                |
-| ------------------- | ----------------------------- | ----------------------------------------------------------|
-| `HTTP_TIMEOUT`       | `5m`                          | Per-request HTTP timeout (Go duration, e.g. `90s`).         |
-| `USE_REDHAT`         | `true`                        | Enable the Red Hat CVE feed.                                |
-| `REDHAT_CVE_URL`     | Red Hat's CVE feed            | Feed URL to fetch and scan against.                         |
-| `REDHAT_PER_PAGE`    | `1000`                        | Results per page when paginating the feed.                  |
-| `USE_DEBIAN`         | `false`                       | Enable the Debian Security Tracker (~70MB feed).             |
-| `DEBIAN_TRACKER_URL` | Debian's tracker feed         | Feed URL.                                                    |
-| `USE_UBUNTU`         | `false`                       | Enable Ubuntu's USN database (hundreds of MB).               |
-| `UBUNTU_USN_URL`     | Ubuntu's USN database         | Feed URL.                                                    |
-| `USE_ALPINE`         | `false`                       | Enable Alpine secdb feeds (see the note above).              |
-| `ALPINE_SECDB_URL`   | v3.24 `main` + `community`    | Comma-separated secdb feed URLs. Alpine versions its secdb by release, not by a stable alias — update this when the host's Alpine version moves on. |
-| `USE_CACHING`        | `false`                       | Skip findings already reported by a previous run.            |
-| `CACHE_PATH`         | `/tmp/scanner-cache`          | File used to persist which findings have already been seen.  |
-| `SEND_MAIL`          | `false`                       | Email the summary table when vulnerabilities are found.      |
-| `MAIL_SERVER_HOST`   | —                             | SMTP host.                                                   |
-| `MAIL_SERVER_PORT`   | —                             | SMTP port.                                                   |
-| `MAIL_USERNAME`      | —                             | SMTP username, also used as the `From` address.              |
-| `MAIL_PASSWORD`      | —                             | SMTP password.                                               |
-| `MAIL_TO`            | —                             | Report recipient.                                            |
-| `USE_ELASTIC`        | `false`                       | Index every finding into Elasticsearch.                      |
-| `ELASTIC_HOST`       | `http://127.0.0.1:9200`       | Elasticsearch URL.                                            |
-| `ELASTIC_INDEX`      | `scanner`                     | Elasticsearch index name.                                    |
+| Detected host           | Sources enabled by default |
+| ------------------------ | --------------------------- |
+| Debian                   | Red Hat + Debian Security Tracker |
+| Alpine                   | Alpine secdb |
+| Ubuntu, RHEL/CentOS/Fedora, or undetected | Red Hat |
 
-Debian, Ubuntu, and Alpine are off by default because their feeds are large
-single JSON documents fetched in full on every run. Only Red Hat's feed is
-paginated server-side; Debian and Ubuntu's are streamed and filtered
-client-side instead, to keep memory bounded.
+Red Hat is in the mix everywhere except Alpine because its matching needs
+no release/repo metadata, which is exactly what's often missing on a
+minimal container image (no apt sources configured means every package
+looks "local" rather than attributed to a suite — precisely where the more
+precise Debian/Ubuntu source would find nothing). A failure in one enabled
+source is logged and skipped rather than aborting the run — the scan only
+fails if every enabled source fails.
 
-A failure in one enabled source is logged and skipped rather than aborting
-the run — the scan only fails if every enabled source fails.
+Every other feature below turns on by setting the value it actually needs —
+never a separate flag:
+
+| Variable            | Description                                                |
+| ------------------- | ----------------------------------------------------------|
+| `HTTP_TIMEOUT`       | Per-request HTTP timeout (Go duration, e.g. `90s`). Default `5m`. |
+| `REDHAT_CVE_URL`     | Override the Red Hat feed URL.                              |
+| `DEBIAN_TRACKER_URL` | Override the Debian tracker feed URL.                       |
+| `UBUNTU_USN_URL`     | Turns on Ubuntu's own USN database (hundreds of MB, fetched in full on every run — set this to opt in). |
+| `ALPINE_SECDB_URL`   | Override the Alpine secdb feed URL(s), comma-separated. Defaults to v3.24 `main` + `community` — Alpine versions its secdb by release, not by a stable alias, so update this when the host's Alpine version moves on. |
+| `CACHE_PATH`         | Where to persist which findings have already been reported. Default `/tmp/scanner-cache`. |
+| `MAIL_TO`            | Report recipient — set this to turn on emailing the summary. |
+| `MAIL_SERVER_HOST`   | SMTP host.                                                   |
+| `MAIL_SERVER_PORT`   | SMTP port.                                                   |
+| `MAIL_USERNAME`      | SMTP username, also used as the `From` address.              |
+| `MAIL_PASSWORD`      | SMTP password.                                               |
+| `ELASTIC_HOST`       | Elasticsearch URL — set this to turn on indexing every finding. |
+| `ELASTIC_INDEX`      | Elasticsearch index name. Default `scanner`.                 |
+
+Debian and Ubuntu's feeds aren't paginated server-side like Red Hat's is;
+they're streamed and filtered client-side instead, to keep memory bounded
+regardless of size.
 
 ## Exit codes
 
@@ -140,6 +148,7 @@ linux/arm64 binaries into `dist/` (Linux only — see Requirements).
 cmd/scanner/main.go        wires the pieces below together, detects the inventory
 internal/
   config/                  environment-driven configuration
+  distro/                  detects the host's Linux distribution
   models/                  shared data types (Component, RedhatCVE, Finding)
   cache/                   generic "have we reported this before" cache
   sources/                 one package per CVE feed, each exposing Scan(...)

@@ -19,10 +19,15 @@ import (
 // Hat appends to package names in AffectedPackages, leaving the bare name.
 var packageReleaseSuffix = regexp.MustCompile(`-[0-9]+:.*`)
 
+// perPage is how many entries FetchAll requests per page. It's purely an
+// HTTP-efficiency detail (fewer, larger requests vs. more, smaller
+// ones), not something a caller has a reason to tune.
+const perPage = 1000
+
 // Scan fetches the Red Hat CVE feed and returns every Finding it
 // produces against components.
 func Scan(ctx context.Context, client *http.Client, cfg config.Config, components []models.Component) ([]models.Finding, error) {
-	cves, err := FetchAll(ctx, client, cfg.Redhat.URL, cfg.RedhatPerPage)
+	cves, err := FetchAll(ctx, client, cfg.Redhat.URL, perPage)
 	if err != nil {
 		return nil, fmt.Errorf("redhat: %w", err)
 	}

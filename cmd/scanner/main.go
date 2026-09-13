@@ -72,15 +72,12 @@ func run(ctx context.Context, cfg config.Config) int {
 		return exitRuntimeError
 	}
 
-	findings := all
-	var c *cache.Cache
-	if cfg.UseCaching {
-		if c, err = cache.Open(cfg.CachePath); err != nil {
-			log.Println(err)
-			return exitRuntimeError
-		}
-		findings = newFindings(all, c)
+	c, err := cache.Open(cfg.CachePath)
+	if err != nil {
+		log.Println(err)
+		return exitRuntimeError
 	}
+	findings := newFindings(all, c)
 
 	esClient, err := newElasticClient(cfg)
 	if err != nil {
@@ -90,10 +87,7 @@ func run(ctx context.Context, cfg config.Config) int {
 
 	printFindings(findings)
 	indexFindings(ctx, esClient, findings)
-
-	if c != nil {
-		markSeen(c, all)
-	}
+	markSeen(c, all)
 
 	return reportFindings(cfg, findings)
 }
@@ -200,7 +194,7 @@ func markSeen(c *cache.Cache, all []models.Finding) {
 }
 
 func newElasticClient(cfg config.Config) (*elastic.Client, error) {
-	if !cfg.UseElastic {
+	if !cfg.ElasticEnabled() {
 		return nil, nil //nolint:nilnil // no client wanted when Elastic indexing is disabled
 	}
 	return elastic.NewClient(cfg)
@@ -253,7 +247,7 @@ func reportFindings(cfg config.Config, findings []models.Finding) int {
 	fmt.Println()
 	fmt.Println(t.Render())
 
-	if cfg.SendMail {
+	if cfg.MailEnabled() {
 		if err := report.SendMail(cfg, t.RenderHTML(), total); err != nil {
 			log.Printf("sending report email: %v", err)
 		}

@@ -3,21 +3,19 @@ package config
 
 import (
 	"os"
-	"strconv"
 	"time"
+
+	"github.com/ykocaman/scanner/internal/distro"
 )
 
 const (
-	defaultRedhatCVEURL  = "https://access.redhat.com/hydra/rest/securitydata/cve.json"
-	defaultRedhatPerPage = 1000
+	defaultRedhatCVEURL = "https://access.redhat.com/hydra/rest/securitydata/cve.json"
 
 	defaultDebianTrackerURL = "https://security-tracker.debian.org/tracker/data/json"
-	defaultUbuntuUSNURL     = "https://usn.ubuntu.com/usn-db/database-all.json"
 	defaultAlpineSecdbURL   = "https://secdb.alpinelinux.org/v3.24/main.json,https://secdb.alpinelinux.org/v3.24/community.json"
 
 	defaultCachePath    = "/tmp/scanner-cache"
 	defaultHTTPTimeout  = 5 * time.Minute
-	defaultElasticHost  = "http://127.0.0.1:9200"
 	defaultElasticIndex = "scanner"
 )
 
@@ -31,72 +29,98 @@ type Source struct {
 type Config struct {
 	HTTPTimeout time.Duration
 
-	Redhat        Source
-	RedhatPerPage int
-	Debian        Source
-	Ubuntu        Source
-	Alpine        Source
+	Redhat Source
+	Debian Source
+	Ubuntu Source
+	Alpine Source
 
-	UseCaching bool
-	CachePath  string
+	CachePath string
 
-	SendMail       bool
 	MailServerHost string
 	MailServerPort string
 	MailUsername   string
 	MailPassword   string
 	MailTo         string
 
-	UseElastic   bool
 	ElasticHost  string
 	ElasticIndex string
+}
+
+// MailEnabled reports whether email reporting is configured: there's no
+// separate on/off switch, sending is enabled by setting a recipient.
+func (c Config) MailEnabled() bool {
+	return c.MailTo != ""
+}
+
+// ElasticEnabled reports whether Elasticsearch indexing is configured:
+// there's no separate on/off switch, indexing is enabled by pointing at
+// a cluster.
+func (c Config) ElasticEnabled() bool {
+	return c.ElasticHost != ""
 }
 
 // Load reads Config from environment variables, applying defaults for
 // anything unset. Call godotenv.Load beforehand to pull values from a
 // .env file into the environment first.
 //
-// Debian and Ubuntu are disabled by default because their feeds are
-// large (tens to hundreds of MB); Alpine is disabled by default because
-// it only produces real matches on an Alpine (apk) host. Note that
-// ALPINE_SECDB_URL points at a specific Alpine release (repo files
-// aren't versioned by a stable alias) - update it when you upgrade the
-// host's Alpine version. See the README before enabling any of these.
+// Every optional feature here is enabled by the presence of the setting
+// it actually needs, rather than a separate boolean living next to it:
+//   - Which CVE source(s) run is auto-detected from the host's
+//     distribution (see internal/distro and sourceDefaults).
+//   - Ubuntu's own USN feed (hundreds of MB, never auto-enabled) turns
+//     on when UBUNTU_USN_URL is set.
+//   - Email sends when MAIL_TO is set.
+//   - Elasticsearch indexing runs when ELASTIC_HOST is set.
+//   - The "already reported?" cache is always on; CACHE_PATH only
+//     changes where it's stored.
 func Load() Config {
+	redhat, debian, alpine := sourceDefaults(distro.Detect())
+	ubuntuURL := os.Getenv("UBUNTU_USN_URL")
+
 	return Config{
 		HTTPTimeout: getDuration("HTTP_TIMEOUT", defaultHTTPTimeout),
 
 		Redhat: Source{
-			Enabled: getBool("USE_REDHAT", true),
+			Enabled: redhat,
 			URL:     getString("REDHAT_CVE_URL", defaultRedhatCVEURL),
 		},
-		RedhatPerPage: getInt("REDHAT_PER_PAGE", defaultRedhatPerPage),
 		Debian: Source{
-			Enabled: getBool("USE_DEBIAN", false),
+			Enabled: debian,
 			URL:     getString("DEBIAN_TRACKER_URL", defaultDebianTrackerURL),
 		},
 		Ubuntu: Source{
-			Enabled: getBool("USE_UBUNTU", false),
-			URL:     getString("UBUNTU_USN_URL", defaultUbuntuUSNURL),
+			Enabled: ubuntuURL != "",
+			URL:     ubuntuURL,
 		},
 		Alpine: Source{
-			Enabled: getBool("USE_ALPINE", false),
+			Enabled: alpine,
 			URL:     getString("ALPINE_SECDB_URL", defaultAlpineSecdbURL),
 		},
 
-		UseCaching: getBool("USE_CACHING", false),
-		CachePath:  getString("CACHE_PATH", defaultCachePath),
+		CachePath: getString("CACHE_PATH", defaultCachePath),
 
-		SendMail:       getBool("SEND_MAIL", false),
 		MailServerHost: os.Getenv("MAIL_SERVER_HOST"),
 		MailServerPort: os.Getenv("MAIL_SERVER_PORT"),
 		MailUsername:   os.Getenv("MAIL_USERNAME"),
 		MailPassword:   os.Getenv("MAIL_PASSWORD"),
 		MailTo:         os.Getenv("MAIL_TO"),
 
-		UseElastic:   getBool("USE_ELASTIC", false),
-		ElasticHost:  getString("ELASTIC_HOST", defaultElasticHost),
+		ElasticHost:  os.Getenv("ELASTIC_HOST"),
 		ElasticIndex: getString("ELASTIC_INDEX", defaultElasticIndex),
+	}
+}
+
+// sourceDefaults picks which CVE source is enabled by default, based on
+// the host's detected distribution id (see internal/distro). Ubuntu
+// isn't decided here: see the comment on Load.
+func sourceDefaults(id string) (redhat, debian, alpine bool) {
+	switch id {
+	case distro.Debian:
+		return true, true, false
+	case distro.Alpine:
+		return false, false, true
+	default: // distro.Ubuntu, distro.RHEL, or undetected
+		return true, false, false
 	}
 }
 
@@ -105,22 +129,6 @@ func getString(key, fallback string) string {
 		return v
 	}
 	return fallback
-}
-
-func getBool(key string, fallback bool) bool {
-	v, err := strconv.ParseBool(os.Getenv(key))
-	if err != nil {
-		return fallback
-	}
-	return v
-}
-
-func getInt(key string, fallback int) int {
-	v, err := strconv.Atoi(os.Getenv(key))
-	if err != nil {
-		return fallback
-	}
-	return v
 }
 
 func getDuration(key string, fallback time.Duration) time.Duration {
